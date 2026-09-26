@@ -170,22 +170,34 @@ async function waitFor(cdp, expression, ms = 15000) {
   return false;
 }
 
+/**
+ * デバッグポートへつなぐ。
+ * Chrome は環境によって localhost を IPv6 側に解決するので両方試す。
+ * @returns {Promise<Cdp|null>} 繋がらなければ null。lastCdpError に理由が入る。
+ */
 async function connect(debugPort, tries = 60) {
-  for (let i = 0; i < tries; i++) {
+const hosts = ['127.0.0.1', '[::1]', 'localhost'];
+let lastCdpError = 'まだ試していない';
+for (let i = 0; i < tries; i++) {
+  for (const host of hosts) {
     try {
-      const list = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
-      const page = list.find((t) => t.type === 'page');
-      if (page && page.webSocketDebuggerUrl) {
+      const res = await fetch(`http://${host}:${debugPort}/json/list`);
+      lastCdpError = `${host}: HTTP ${res.status}`;
+      const list = await res.json();
+        const page = list.find((t) => t.type === 'page');
+        if (!page || !page.webSocketDebuggerUrl) continue;
         const ws = new WebSocket(page.webSocketDebuggerUrl);
-        await new Promise((res, rej) => {
-          ws.addEventListener('open', res, { once: true });
-          ws.addEventListener('error', () => rej(new Error('ws')), { once: true });
+        await new Promise((res2, rej) => {
+          ws.addEventListener('open', res2, { once: true });
+          ws.addEventListener('error', () => rej(new Error('ws が開かない')), { once: true });
         });
         const cdp = new Cdp(ws);
         cdp.autoAcceptDialogs();
         return cdp;
-      }
-    } catch { /* まだ起動していない */ }
+    } catch (e) {
+      lastCdpError = `${host}: ${e.message}`;
+    }
+    }
     await wait(250);
   }
   return null;
@@ -236,7 +248,9 @@ try {
   if (!port) throw new Error(`Chrome が debugging ポートを開かなかった\n${chromeLog.trim().slice(-600)}`);
 
   cdp = await connect(port);
-  if (!cdp) throw new Error(`CDP に接続できない\n${chromeLog.trim().slice(-600)}`);
+  if (!cdp) {
+    throw new Error(`CDP に接続できない (port=${port}, ${lastCdpError})\n${chromeLog.trim().slice(-800)}`);
+  }
   await cdp.send('Runtime.enable');
   await cdp.send('Log.enable');
   await cdp.send('Page.enable');
