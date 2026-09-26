@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# ビルド成果物だけを Pages に publish する権限。
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時実行を避けるため、concurrency group を分ける。
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: テスト
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # 依存パッケージは無いので、構文チェックと論理のテストだけ回す。
+      - name: テスト
+        run: npm test
+
+  deploy:
+    name: デプロイ
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+        id: pages
+
+      # ビルドは要らないので、リポジトリのファイルをそのまま上げる。
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

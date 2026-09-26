@@ -1,0 +1,15 @@
+{
+  "name": "pixel-slither",
+  "version": "1.0.0",
+  "private": true,
+  "description": "しっぽが背中でドットを置いていくおえかきゲーム。色を選んでキャンバスを埋めると絵になる。依存ゼロ、ブラウザだけで動く。",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve -l 8098 .",
+    "test": "node test/all.mjs",
+    "test:browser": "node test/browser.test.js",
+    "shot": "node test/shot.mjs"
+  },
+  "keywords": ["game", "snake", "pixel-art", "canvas", "no-dependencies"],
+  "license": "MIT"
+}

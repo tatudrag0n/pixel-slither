@@ -1,0 +1,15 @@
+# リポジトリは LF で持つ。
+# Pages のファイル数が減る (Jekyll ビルドを止める) ため .nojekyll を同梱する。
+* text=auto eol=lf
+
+*.js   text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.md   text eol=lf
+*.svg  text eol=lf
+
+# バイナリ
+*.png  binary
+*.ico  binary
