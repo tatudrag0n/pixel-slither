@@ -21,13 +21,14 @@ jobs:
     name: テスト
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
 
-      # 依存パッケージは無いので、構文チェックと論理のテストだけ回す。
+      # 依存パッケージは無いので、構文チェックとブラウザ実機のテストだけ回す。
+      # (ブラウザが無い環境ではその項目だけ省いて通る)
       - name: テスト
         run: npm test
 
@@ -39,15 +40,16 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         id: pages
 
       # ビルドは要らないので、リポジトリのファイルをそのまま上げる。
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: .
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+

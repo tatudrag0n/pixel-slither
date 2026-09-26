@@ -73,6 +73,8 @@ const child = spawn(exe, [
   `--user-data-dir=${profile}`,
   '--no-first-run',
   '--disable-gpu',
+  '--no-sandbox',
+  '--disable-dev-shm-usage',
   '--hide-scrollbars',
   '--window-size=1280,860',
   'about:blank',

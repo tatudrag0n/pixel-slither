@@ -23,7 +23,9 @@ const CANDIDATES = [
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
   '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
   '/usr/bin/microsoft-edge',
 ];
 
@@ -186,7 +188,7 @@ async function connect(debugPort, tries = 60) {
     } catch { /* まだ起動していない */ }
     await wait(250);
   }
-  throw new Error('CDP に接続できない');
+  return null;
 }
 
 /* --------------------------------------------------------------------- 実行 */
@@ -197,18 +199,29 @@ if (!exe) {
   process.exit(0);
 }
 
-const server = await serve(PORT);
-const profile = await mkdtemp(join(tmpdir(), 'pxslither-'));
-const child = spawn(exe, [
+const CHROME_FLAGS = [
   '--headless=new',
   '--remote-debugging-port=0',
-  `--user-data-dir=${profile}`,
   '--no-first-run',
   '--no-default-browser-check',
   '--disable-gpu',
+  // CI は root で走るため sandbox を切らないと Chrome が起動できない。
+  '--no-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-extensions',
   '--window-size=1400,900',
+];
+
+const server = await serve(PORT);
+const profile = await mkdtemp(join(tmpdir(), 'pxslither-'));
+// Chrome の stderr を取っておく。接続できないときの切り分けに使う。
+let chromeLog = '';
+const child = spawn(exe, [
+  ...CHROME_FLAGS,
+  `--user-data-dir=${profile}`,
   'about:blank',
-], { stdio: 'ignore' });
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+child.stderr.on('data', (d) => { chromeLog += d.toString(); });
 
 let cdp = null;
 try {
@@ -220,9 +233,10 @@ try {
       port = Number(txt.split('\n')[0]);
     } catch { await wait(125); }
   }
-  if (!port) throw new Error('Chrome が_debugging ポートを開かなかった');
+  if (!port) throw new Error(`Chrome が debugging ポートを開かなかった\n${chromeLog.trim().slice(-600)}`);
 
   cdp = await connect(port);
+  if (!cdp) throw new Error(`CDP に接続できない\n${chromeLog.trim().slice(-600)}`);
   await cdp.send('Runtime.enable');
   await cdp.send('Log.enable');
   await cdp.send('Page.enable');
