@@ -41,6 +41,8 @@ export class SharedGame {
     this.ws = null;
     this.status = 'idle';
     this.connected = false;
+    /** «出る» を押したら true。自動再接続を止める。 */
+    this.quit = false;
     this.id = 0;
     this.color = 1;
     this.w = 0;
@@ -81,7 +83,7 @@ export class SharedGame {
 
   /** サーバーにつなぐ。 */
   connect() {
-    if (this.ws) return;
+    if (this.ws || this.quit) return;
     this.status = 'linking';
     let ws;
     try {
@@ -103,13 +105,12 @@ export class SharedGame {
     ws.addEventListener('error', () => this.onClose());
   }
 
-  /** 切���れたら自動で繋ぎ直す。 */
+  /** 切れたら自動で繋ぎ直す。ただし «出る» を押したら繋ぎ直さない。 */
   onClose() {
     this.connected = false;
     this.stopPing();
-    if (this.ws && this.ws.readyState <= 1) this.ws = null;
     this.ws = null;
-    if (this.status === 'failed') return;
+    if (this.quit || this.status === 'failed') return;
     this.status = 'offline';
     this.retry += 1;
     if (this.retry > 5) {
@@ -461,6 +462,7 @@ export class SharedGame {
 
   /** 全部閉じる。 */
   close() {
+    this.quit = true;
     clearTimeout(this.retryTimer);
     this.stopPing();
     if (this.ws) {

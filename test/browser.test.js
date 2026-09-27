@@ -453,6 +453,9 @@ try {
   ok(await cdp.eval('!!window.__px.state.rival'), '相手も戻る');
 
   console.log('== 巨大戦場 ==');
+  // サーバーに "local" を明示する。空欄だと既定の実サーバー (ネットワーク必須) に
+  // 乗ってしまうので、この Isolated な区間は必ずローカルで回す。
+  await cdp.eval('document.getElementById("inServer").value = "local"');
   await cdp.eval('document.querySelector(\'[data-mode="world"]\').click()');
   await wait(400);
   ok(await cdp.eval('window.__px.worldMode === true'), '巨大戦場に切替');
@@ -511,6 +514,47 @@ try {
     .map((e) => e.params.exceptionDetails.exception?.description || e.params.exceptionDetails.text);
   ok(consoleErrors.length === 0, 'コンソールにエラーなし', consoleErrors.join(' | '));
   ok(exceptions.length === 0, '例外なし', exceptions.join(' | '));
+
+  // ------------------------------------------------------------------
+  // 実サーバーにつなぐ。PX_LIVE_SERVER=1 を付けたときだけ走らせる
+  // (ネットワークと公開済みの Worker が必要なため、通常は回さない)。
+  // 最後に置くのは、切断時にハングしても他の結果を失わないようにするため。
+  // ------------------------------------------------------------------
+  if (process.env.PX_LIVE_SERVER === '1') {
+    console.log('== 実サーバー ==');
+    // サーバー欄は空欄 = 既定の公開 Worker。直接 startWorld を叩く。
+    await cdp.eval(`(() => {
+      document.getElementById('inServer').value = '';
+      window.__px.startWorld();
+      return true;
+    })()`);
+
+    // welcome に 3.2MB が来るので、少し待つ。
+    await wait(6000);
+    ok(await cdp.eval('!!window.__px.world && !window.__px.world.bots'),
+      'ローカルボットではなく実サーバーに乗った');
+    ok(await cdp.eval('!!window.__px.world && window.__px.world.connected === true'),
+      'WebSocket が繋がっている');
+    ok(await cdp.eval('window.__px.world.id > 0'),
+      '参加できた (サーバーが id を発行)', await cdp.eval('String(window.__px.world.id)'));
+    ok(await cdp.eval('window.__px.world.paint.length === 2400000'),
+      '実サーバーから 240 万マスを受け取った',
+      await cdp.eval('String(window.__px.world.paint.length)'));
+
+    // 少し動かして、リーダーとitolikoの更新まで確認する。
+    await cdp.eval('window.__px.world.turn(1)');
+    await wait(9000);
+    ok(await cdp.eval('window.__px.world.leader.length >= 1'),
+      'リーダーが実サーバーから来る', await cdp.eval('JSON.stringify(window.__px.world.leader)'));
+    ok(await cdp.eval('window.__px.world.connected === true'), '9 秒後も繋がっている');
+    ok(await cdp.eval('window.__px.world.status === "online" || window.__px.world.connected === true'),
+      '切断されていない');
+
+    // 切断してタイマーが止まることを確認する (後始末)。
+    await cdp.eval('window.__px.world.close()');
+    await wait(1500);
+    ok(await cdp.eval('window.__px.world.connected === false'), '切断できる');
+  }
 } catch (e) {
   // Chrome が起動できないのは環境の問題であってゲームの不具合ではない。
   // CI では止めずに警告として残す (実際の確認は手元で npm test で行う)。

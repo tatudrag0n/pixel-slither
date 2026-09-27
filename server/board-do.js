@@ -1,7 +1,8 @@
 // ============================================================================
 // 共有盤の Durable Object
 //
-// サイトを見てる全員が同じ 1 枚���巨大な盤を共有する。
+// サイトを見てる全員が同じ 1 枚の巨大な盤を共有する。
+
 // この DO が唯一の権威で、tick を回して判定し、WebSocket で配る。
 //
 //   クライアント →  {t:'j',n:名前} 参加
@@ -47,7 +48,8 @@ export class SharedBoard {
   }
 
   /**
-   * fetch と WebSocket upgrade をうけ���ばす。
+   * fetch と WebSocket upgrade を受け渡す。
+
    * @param {Request} req
    */
   async fetch(req) {
@@ -265,7 +267,6 @@ export class SharedBoard {
       h: this.board.h,
       id: sock.playerId,
       c: me ? me.color : 1,
-      // 盤は Base64 ではなく生バイナリで渡す。配列で包むと 10 倍になる。
       paint: encodeBase64(this.board.paint),
       p: [...this.board.players.values()].map(packPlayer),
       g: this.board.pigments.slice(0, 200),

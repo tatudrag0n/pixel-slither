@@ -99,6 +99,7 @@ const suites = [
   'net.test.js',
   'board.test.js',
   'shared.test.js',
+  'client-life.test.js',
 ];
 let failed = 0;
 for (const s of suites) {

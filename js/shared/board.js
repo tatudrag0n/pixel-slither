@@ -113,7 +113,8 @@ export function releaseColorIfFree(board, c) {
 
 /**
  * size から速さ (マス/tick) を求める。大きいほど速い。
- * size は 1 始まり���最大���。
+ * size は 1 始まり、最大 40。
+
  * @param {number} size
  * @returns {number}
  */

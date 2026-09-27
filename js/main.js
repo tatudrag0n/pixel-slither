@@ -28,6 +28,9 @@ import { LocalWorld } from './net/local-world.js';
 import { WorldRenderer } from './ui/world-render.js';
 import { TEAM_COLORS, speedForSize, brushForSize, lengthForSize } from './shared/board.js';
 
+/** 共有盤のサーバー。既定は公開済みの Worker。空にするとローカルボット戦。 */
+const DEFAULT_SERVER = 'wss://pixel-slither-board.tatudragon0327.workers.dev';
+
 const $ = (id) => document.getElementById(id);
 
 const el = {
@@ -472,8 +475,9 @@ function leaveWorldMode() {
 /** サーバーにつなぐ。空ならローカルボットで代替。 */
 function startWorld() {
   const name = (el.inName.value || '').trim().slice(0, 16) || '名無し';
-  const url = (el.inServer.value || '').trim();
-  if (!url) {
+  const url = (el.inServer.value || '').trim() || DEFAULT_SERVER;
+  el.inServer.value = url;
+  if (!url || url === 'local') {
     startLocalWorld(name);
     return;
   }

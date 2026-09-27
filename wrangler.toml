@@ -24,9 +24,9 @@ class_name = "SharedBoard"
 tag = "v1"
 new_sqlite_classes = ["SharedBoard"]
 
-# 盤の描画はクライアント側で行うので、CPU に余裕を持たせる。
-[limits]
-cpu_ms = 2000
+# CPU 制限は指定しない。無料プランでは limits を書けないので、
+# 既定の 30 秒 (DO なので tick ループには十分) に任せる。
+# 描画はすべてクライアント側で行うので、サーバー側の CPU は軽い。
 
 [observability]
 enabled = true

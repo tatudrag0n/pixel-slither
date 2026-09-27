@@ -667,6 +667,12 @@ kbd {
   accent-color: var(--accent);
 }
 
+.row span small {
+  display: block;
+  font-size: 10px;
+  color: #6f7a92;
+}
+
 .row select,
 .row input[type="text"] {
   width: 100%;

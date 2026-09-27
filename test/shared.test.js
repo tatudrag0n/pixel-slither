@@ -3,8 +3,10 @@
 //   node test/shared.test.js
 //
 // Cloudflare の型を宙fake して、Durable Object のロジックを
-// 実際に回す。デプロイしなくても配線の正しい���が分かる。
-// デプロイしなくても配線の正しい���が分かる。
+// 実際に回す。デプロイしなくても配線の正しいところまでが分かる。
+
+// デプロイしなくても配線の正しいところまでが分かる。
+
 
 import { SharedBoard, encodeBase64, decodeBase64, packCells } from '../server/board-do.js';
 import { createBoard, addPlayer, MAX_SIZE, TEAM_COLORS } from '../js/shared/board.js';
@@ -366,8 +368,8 @@ section('変更したチャンクだけ書く');
   d.onMessage(a, JSON.stringify({ t: 'j', n: 'A' }));
   for (let i = 0; i < 40; i++) d.loop();
   d.persist();
-  eq(d.dirtyChunks.size, 0, '保存後は空');
-  // 少し回してまた保存する。前回より書き���先が減っているはず。
+  eq(d.dirtyChunks.size, 0, '保存後はまた空');
+
   for (let i = 0; i < 40; i++) d.loop();
   ok(d.dirtyChunks.size < 40, '全部は書き直さない', d.dirtyChunks.size);
   d.persist();

@@ -54,16 +54,26 @@
 - **右上に陣営の塗り面積のリーダー**が出ます。240 万マスなので 4 桁の小数とマス数で出します。
 操作は他のモードと同じ (WASD / 矢印 / スワイプ)。落ちてもすぐ戻れるので気軽に試せます。
 
-共有盤にはサーバーが要ります。Cloudflare Workers の**無料枠**で動きます
+共有盤のサーバーは**公開済み**です。
+
+```
+https://pixel-slither-board.tatudragon0327.workers.dev
+```
+
+**サーバー欄は空欄のままで構いません。** 空欄だと上の公開サーバーに自動でつなぎます。
+`local` と打つと、このブラウザの中だけでボットと戦うローカル戦になります
+(共有はされない。接続できないときの逃げ道)。
+
+サーバーを自分で出すときはこうします。Cloudflare Workers の**無料枠**で動きます
 (1 日 10 万リクエストまで / Durable Object 1 つ)。
 
 ```bash
 npx wrangler login        # 一度だけ。ブラウザで Cloudflare に登録
 npm run deploy:server     # 公開。URL が出る
 ```
-出た URL を巨大戦場パネルの「サーバー」に `wss://…` で入れて「共有盤に入る」。
-空のまま「共有盤に入る」を押すと、**このブラウザの中だけでボットと戦う**ローカル戦になります
-(共有はされない。接続できないときの逃げ道)。
+
+**`wrangler.toml` の `[[durable_objects.bindings]]` の名前を変えると、既存の絵が消える**ので、
+変えたら触らないこと。
 
 `npm run server:dev` で手元でも動かせる。`npm run deploy:server:tail` で通信を見られる。
 
@@ -85,7 +95,7 @@ Settings → Secrets and variables → Actions → New repository secret
 - 蛇は画面上の 86 × 54 マスだけ描画。layer から切り出して拡大するだけなので軽い。
 - 盤は 60KB ずつに切って Durable Object storage に保存する。1 値 128KB の制限があるため。
 - **90 秒に 1 回、変わったチャンクだけ**書き込む。毎回 2.4MB 書かない。
-- 1 tick あたり通信量は 1 隻が 10 マス塗れば 30 文字くらい。64 人いても 2KB/秒 程度。
+- 実測した定常トラフィックは **1 隻あたり 3.3 KB/秒**。64 人いても 200 KB/秒 程度。
 
 ## 対戦のつなぎ方
 
@@ -176,11 +186,18 @@ npm run shot          # スクリーンショットを作り直す
 | `net.test.js` | AI の判断、部屋コード、ホスト/ゲストの同期 |
 | `board.test.js` | 巨大盤のコア (成長・衝突・面積・pigment) |
 | `shared.test.js` | Durable Object の配線。WebSocket と storage を fake して実際に回す |
+| `client-life.test.js` | クライアントの接続の生き死に。自動再接続と「出る」 |
 | `browser.test.js` | 実ブラウザでキー入力、canvas 描画、陣営戦、巨大戦場 |
 | `duel.test.js` | 2 枚タブで実際に戦わせて絵まで一致するか |
 
 ブラウザが無い環境ではブラウザ系 2 つだけ省いて通ります。
 `shared.test.js` は Cloudflare に繋がなくても動くので、サーバーの配線を常に確認できる。
+
+公開済みの Worker にもつないで確認できる。
+
+```
+PX_LIVE_SERVER=1 node test/browser.test.js   # 実サーバーに乗せる (ネットワーク必須)
+```
 
 公開済みのサイトそのものも同じテストで確認できる。
 
@@ -249,6 +266,7 @@ test/store.test.js    保存と復元
 test/net.test.js      AI と同期
 test/board.test.js    巨大盤のコア
 test/shared.test.js   Durable Object の配線
+test/client-life.test.js クライアントの接続の生き死に
 test/browser.test.js  ブラウザ実機 (headless)
 test/duel.test.js     2 タブの実対戦
 test/shot.mjs         スクリーンショット作成

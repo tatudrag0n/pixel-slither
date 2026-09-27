@@ -5,22 +5,19 @@
 // DO は 1 つだけなので、全員が同じ 1 枚の盤を見る。
 // Cloudflare Workers の無料枠で動く (一日 10 万リクエストまで)。
 // ============================================================================
-// DO は 1 つだけなので、全員が同じ 1 枚の盤を見る。
+
 import { SharedBoard } from './board-do.js';
 
 /** Durable Object クラスはエントリから出す必要がある。 */
 export { SharedBoard };
 
-/** DO の実体。 */
-const BOARD = new SharedBoard();
-
 export default {
   /**
    * @param {Request} req
-    // 盤の要約。ブラウザから直接叩ける。
+   * @param {object} env
    * @param {object} ctx
    */
-  async fetch(req, env, ctx) {
+  async fetch(req, env) {
     const url = new URL(req.url);
 
     // 生きてるかの確認。
@@ -28,16 +25,16 @@ export default {
       return json({ ok: true, at: Date.now() });
     }
 
+    // DO は 1 つだけ。名前はコードで "main" に固定。
+    const id = env.BOARD.idFromName('main');
+    const stub = env.BOARD.get(id);
+
     // 盤の要約。ブラウザから直接叩ける。
     if (url.pathname === '/stats') {
-      const id = env.BOARD.idFromName('main');
-      const stub = env.BOARD.get(id);
       return stub.fetch('https://do/stats');
     }
 
-    // それ以外は全部 DO へ素通し。
-    const id = env.BOARD.idFromName('main');
-    const stub = env.BOARD.get(id);
+    // それ以外は全部 DO へ素通し (WebSocket の upgrade を含む)。
     return stub.fetch(req);
   },
 };
