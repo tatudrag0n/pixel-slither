@@ -6,6 +6,8 @@
 
 ブラウザだけで動きます。ビルドもサーバーも不要で、GitHub Pages に置くだけで公開できます。
 
+**あそびに ==> [https://tatudrag0n.github.io/pixel-slither/](https://tatudrag0n.github.io/pixel-slither/)**
+
 ![スクリーンショット](docs/screenshot.png)
 
 上の絵は `npm run shot` でプログラムから描いたものです。実際は蛇のしっぽで 1 マスずつ塗ります。
@@ -62,6 +64,12 @@ npm run shot        # docs/screenshot.png を作り直す
 `npm test` の中のブラウザ実機は Chrome / Edge を headless で起こして
 実際にキー入力し、canvas に色が出るかまで見ます。
 ブラウザが無い環境ではその項目だけ省いて通ります。
+
+公開済みのサイトそのものも同じテストで確認できる。
+
+```bash
+TARGET_URL=https://tatudrag0n.github.io/pixel-slither/ npm run test:browser
+```
 
 `npm start` は `npx serve` を使います。`js/` は ES モジュールなので、
 `index.html` を直接開くのではなく HTTP で開いてください。

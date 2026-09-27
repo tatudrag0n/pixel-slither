@@ -4,6 +4,9 @@
 //
 // Chrome / Edge を headless で起こし、CDP 越しに実際の画面を操作する。
 // 依存パッケージは使わない (Node 22 以降内蔵の WebSocket を使う)。
+//
+//   TARGET_URL=https://example.github.io/your-game/ node test/browser.test.js
+// とすると公開済みサイトを直接確認できる (npm run test:live)。
 // ============================================================================
 
 import { spawn } from 'node:child_process';
@@ -16,6 +19,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PORT = Number(process.env.PORT || 8099);
+// 指定があればローカルのサーバを立てず、その場所をそのまま開く。
+const LIVE = process.env.TARGET_URL ? process.env.TARGET_URL.replace(/\/+$/, '') : '';
+const TARGET = `${LIVE || `http://127.0.0.1:${PORT}`}/index.html?debug=1`;
 const CANDIDATES = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
@@ -178,6 +184,17 @@ let lastCdpError = 'まだ試していない';
  * Chrome は環境によって localhost を IPv6 側に解決するので両方試す。
  * @returns {Promise<Cdp|null>} 繋がらなければ null。lastCdpError に理由が入る。
  */
+/**
+ * 別のページへ移動する。
+ * 前の文脈が答え続けてしまうため、一度 about:blank を経由してから開く。
+ */
+async function openPage(cdp, url) {
+  await cdp.send('Page.navigate', { url: 'about:blank' });
+  await waitFor(cdp, 'location.href === "about:blank"');
+  await cdp.send('Page.navigate', { url });
+  await waitFor(cdp, 'window.__px && window.__px.state && document.readyState === "complete"');
+}
+
 async function connect(debugPort, tries = 120) {
   const hosts = ['127.0.0.1', '[::1]', 'localhost'];
   for (let i = 0; i < tries; i++) {
@@ -232,7 +249,7 @@ const CHROME_FLAGS = [
   '--window-size=1400,900',
 ];
 
-const server = await serve(PORT);
+const server = LIVE ? null : await serve(PORT);
 const profile = await mkdtemp(join(tmpdir(), 'pxslither-'));
 // Chrome の stderr を取っておく。接続できないときの切り分けに使う。
 let chromeLog = '';
@@ -264,12 +281,9 @@ try {
     `,
   });
 
-  const url = `http://127.0.0.1:${PORT}/index.html?debug=1`;
-  await cdp.send('Page.navigate', { url });
-  await waitFor(cdp, 'window.__px && document.readyState === "complete"');
-  await wait(300);
-
-  console.log('== 読み込み ==');
+  console.log(`== 読み込み ==\n  ${TARGET}`);
+  await openPage(cdp, TARGET);
+  await wait(400);
   ok(await cdp.eval('!!document.getElementById("board")'), 'キャンバスがある');
   const errs = await cdp.eval('JSON.stringify(window.__errs || [])');
   ok(errs === '[]', '読み込み中にエラーがない', errs);
@@ -382,9 +396,8 @@ try {
   console.log('== 保存 ==');
   const saved = await cdp.eval('(window.__px.save(), !!localStorage.getItem("pixel-slither.v1"))');
   ok(saved, 'localStorage に絵が入る');
-  await cdp.send('Page.navigate', { url: `http://127.0.0.1:${PORT}/index.html?debug=1` });
-  await waitFor(cdp, 'window.__px && window.__px.state');
-  await wait(300);
+  await openPage(cdp, TARGET);
+  await wait(400);
   ok(await cdp.eval('window.__px.state.cols === 32'), '塗り絵が復元される',
     await cdp.eval('String(window.__px.state.cols)'));
   ok(await cdp.eval('window.__px.state.speed === 12'), '設定も復元される');
@@ -411,7 +424,7 @@ try {
 } finally {
   if (cdp) { try { cdp.ws.close(); } catch { /* 無視 */ } }
   child.kill();
-  server.close();
+  if (server) server.close();
   await rm(profile, { recursive: true, force: true }).catch(() => {});
 }
 
