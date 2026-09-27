@@ -5,7 +5,7 @@
 // ゲームの判断はすべて js/game/state.js にあり、ここは受け渡すだけの役。
 // ============================================================================
 
-import { clamp, stamp, formatTime } from './core/util.js';
+import { clamp, stamp, formatTime, formatNum } from './core/util.js';
 import { bindKeys, bindSwipe, bindPad } from './core/input.js';
 import {
   initStore, saveState, loadData, saveRecord, clearSavedGame,
@@ -14,7 +14,7 @@ import {
   createState, step, turn, restart, clearCanvas, setGrid, start, togglePause,
   maxLength, players, areaOf, recount, timeUp, endRound,
 } from './game/state.js';
-import { MAX_COLOR, KEY_SLOTS, BG, nextColor } from './data/colors.js';
+import { MAX_COLOR, KEY_SLOTS, BG, nextColor, hexOf } from './data/colors.js';
 import { LEVELS, LEVEL_LIST } from './game/ai.js';
 import { Renderer, exportCanvas } from './ui/render.js';
 import { Palette } from './ui/palette.js';
@@ -23,6 +23,10 @@ import { makeRoomCode, normalizeRoomCode, isRoomCode } from './net/channel.js';
 import { hostWithTabs, joinWithTabs } from './net/tabs.js';
 import { hostWithPeer, joinWithPeer } from './net/peer.js';
 import { Netplay } from './net/netplay.js';
+import { SharedGame } from './net/shared-game.js';
+import { LocalWorld } from './net/local-world.js';
+import { WorldRenderer } from './ui/world-render.js';
+import { TEAM_COLORS, speedForSize, brushForSize, lengthForSize } from './shared/board.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -68,6 +72,24 @@ const el = {
   inRoom: $('inRoom'),
   roomCode: $('roomCode'),
   netStatus: $('netStatus'),
+  hudWorld: $('hudWorld'),
+  hudSolo: $('hudSolo'),
+  worldPanel: $('worldPanel'),
+  inName: $('inName'),
+  inServer: $('inServer'),
+  btnWorldJoin: $('btnWorldJoin'),
+  btnWorldLeave: $('btnWorldLeave'),
+  worldHint: $('worldHint'),
+  wStatus: $('wStatus'),
+  wSize: $('wSize'),
+  wSpeed: $('wSpeed'),
+  wBrush: $('wBrush'),
+  wLen: $('wLen'),
+  wKills: $('wKills'),
+  wMap: $('wMap'),
+  leader: $('leader'),
+  leaderList: $('leaderList'),
+  leaderFoot: $('leaderFoot'),
   inSpeed: $('inSpeed'),
   inLength: $('inLength'),
   inGrid: $('inGrid'),
@@ -85,6 +107,14 @@ const el = {
 
 const hud = new Hud(el);
 const renderer = new Renderer(el.board, el.boardWrap);
+const worldRenderer = new WorldRenderer(el.board, el.boardWrap);
+
+/** 巨大戦場。サーバー版かローカル版か。 */
+let world = null;
+let worldMode = false;
+let worldAccum = 0;
+let worldLast = 0;
+let worldColor = 1;
 
 let state = null;
 let records = {};
@@ -159,6 +189,13 @@ function cycleColor(delta) {
 }
 
 function doTurn(dir) {
+  if (worldMode) {
+    if (world && world.turn) {
+      const d = { up: 0, right: 1, down: 2, left: 3 }[dir];
+      if (d !== undefined) world.turn(d);
+    }
+    return;
+  }
   if (state.status === 'idle') startPlay();
   if (net && !net.host) net.localInput(dir);
   else turn(state.me, dir);
@@ -249,6 +286,14 @@ function loadGuideFile(file) {
 /* ------------------------------------------------------------------ モード */
 
 function applyMode(mode, opt = {}) {
+  if (mode === 'world') {
+    if (!worldMode) enterWorldMode();
+    for (const b of el.modeSeg.querySelectorAll('button')) {
+      b.setAttribute('aria-pressed', b.dataset.mode === 'world' ? 'true' : 'false');
+    }
+    return;
+  }
+  if (worldMode) leaveWorldMode();
   const want = mode === 'battle' ? 'battle' : 'solo';
   if (state.mode !== want) {
     if (state.painted > 0 && !opt.keepState) {
@@ -388,6 +433,221 @@ async function joinRoom() {
   }
 }
 
+/* ------------------------------------------------------------ 巨大戦場 */
+
+/** 巨大戦場に切り替える。 */
+function enterWorldMode() {
+  worldMode = true;
+  el.hudSolo.hidden = true;
+  el.hudWorld.hidden = false;
+  el.leader.hidden = false;
+  el.worldPanel.hidden = false;
+  el.battlePanel.hidden = true;
+  el.versus.hidden = true;
+  el.progressBar.hidden = true;
+  el.boardWrap.classList.add('world');
+  el.btnPlay.hidden = true;
+  el.btnRestart.hidden = true;
+  el.statusHint.textContent = '落ちたときだけ色を選べます。色素を取ると大きくなって速く・太く塗れる。';
+  el.modeHint.textContent = '巨大戦場: サイトを見てる全員が同じ 2000 × 1200 の盤を共有します。';
+  layoutWorld();
+  startWorld();
+}
+
+/** 巨大戦場を離れる。 */
+function leaveWorldMode() {
+  worldMode = false;
+  if (world && world.close) world.close();
+  world = null;
+  el.hudSolo.hidden = false;
+  el.hudWorld.hidden = true;
+  el.leader.hidden = true;
+  el.boardWrap.classList.remove('world');
+  el.btnPlay.hidden = false;
+  el.btnRestart.hidden = false;
+  renderer.layout(state.cols, state.rows);
+  renderer.dirty = true;
+}
+
+/** サーバーにつなぐ。空ならローカルボットで代替。 */
+function startWorld() {
+  const name = (el.inName.value || '').trim().slice(0, 16) || '名無し';
+  const url = (el.inServer.value || '').trim();
+  if (!url) {
+    startLocalWorld(name);
+    return;
+  }
+  el.wStatus.textContent = 'サーバーに接続しています…';
+  const g = new SharedGame({
+    canvas: el.board,
+    url,
+    name,
+    say: (m) => hud.toast(m),
+    onJoin: () => {
+      el.wStatus.textContent = '共有盤に参加しました。';
+      worldColor = 1;
+    },
+    onDead: (m) => {
+      showColorPicker(m && m.k ? `${m.k} 体撃破しました。` : '脱落しました。');
+    },
+    onLeader: () => {},
+  });
+  world = g;
+  g.connect();
+  // 接続できなければローカルに落とす。
+  setTimeout(() => {
+    if (world === g && g.status !== 'online') {
+      hud.toast('サーバーに繋がりません。ローカルボットで開始します。');
+      startLocalWorld(name);
+    }
+  }, 4000);
+}
+
+/** サーバー無しのローカル戦。 */
+function startLocalWorld(name) {
+  if (world && world.close) world.close();
+  world = new LocalWorld({ name });
+  worldColor = world.color;
+  el.wStatus.textContent = 'ローカルボットと戦っています (共有ではありません)';
+}
+
+/** 巨大戦場の画面幅を計算する。 */
+function layoutWorld() {
+  const wrap = el.boardWrap;
+  const availW = Math.max(240, wrap.clientWidth);
+  const availH = Math.max(200, window.innerHeight * 0.6);
+  worldRenderer.layout(availW, availH);
+}
+
+/** 巨大戦場の 1 tick。 */
+function worldFrame(now) {
+  const dt = Math.min(now - worldLast, 400);
+  worldLast = now;
+  if (!world) return;
+  worldAccum += dt;
+  const interval = 50;
+  let guard = 0;
+  while (worldAccum >= interval && guard < 20) {
+    worldAccum -= interval;
+    guard += 1;
+    if (world.loop) world.loop();
+  }
+  // 共有版は tick が届いている。ローカル版はここで回す。
+  drawWorld();
+}
+
+/** 巨大戦場を描く。 */
+function drawWorld() {
+  if (!world) return;
+  const src = world;
+  const me = src.players instanceof Map ? src.players.get(src.id) : null;
+  const layer = src.layer;
+  worldRenderer.draw(layer, me, src.w, src.h, src.pigments || [], src.players || new Map());
+  updateWorldHud(src, me);
+  updateLeader(src);
+}
+
+/** 巨大戦場の数字。 */
+function updateWorldHud(src, me) {
+  if (me) {
+    hud.set('wSize', String(me.s));
+    hud.set('wSpeed', (speedForSize(me.s) * 20).toFixed(1));
+    hud.set('wBrush', `${brushForSize(me.s)} マス`);
+    hud.set('wLen', String(lengthForSize(me.s)));
+    hud.set('wKills', String(me.k || 0));
+  }
+  hud.set('wMap', `${src.w} × ${src.h}`);
+  const alive = [...(src.players.values() || [])].filter((p) => p.a).length;
+  const info = src.info ? src.info() : null;
+  hud.set('wStatus', `${src.status === 'local' ? 'ローカル' : '共有盤'} · 参加者 ${alive} 人`);
+  if (info && info.status === 'failed') {
+    hud.set('wStatus', 'サーバーに接続できません');
+  }
+}
+
+/** 右上のリーダー。 */
+function updateLeader(src) {
+  const rows = src.leader || [];
+  const total = src.w * src.h;
+  const list = el.leaderList;
+  if (!list) return;
+  const mine = src.color;
+  const frag = document.createDocumentFragment();
+  const top = rows.slice(0, 5);
+  const read = (r) => (r.color !== undefined ? [r.color, r.area] : [r[0], r[1]]);
+  for (let i = 0; i < top.length; i++) {
+    const [color, area] = read(top[i]);
+    const li = document.createElement('li');
+    if (color === mine) li.className = 'mine';
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.style.background = hexOf(color);
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = color === mine ? '自分' : `色 ${color}`;
+    const pct = document.createElement('span');
+    pct.className = 'pct';
+    // 240 万マスだと 2 桁では全部 0.00% になるので、小数 4 桁とマス数で出す。
+    pct.textContent = `${formatNum(area)} ${(area / total * 100).toFixed(4)}%`;
+    li.append(chip, who, pct);
+    frag.append(li);
+  }
+  list.replaceChildren(frag);
+  if (top.length) {
+    const [bestColor, bestArea] = read(top[0]);
+    hud.set('leaderFoot', `1 位は色 ${bestColor} (${formatNum(bestArea)} マス / ${(bestArea / total * 100).toFixed(4)}%)`);
+  } else {
+    hud.set('leaderFoot', 'まだ誰も描いていません');
+  }
+}
+
+/** 復活時の色選び。 */
+function showColorPicker(headline) {
+  const nodes = [];
+  const h = makeEl('h2', '色を選んで再登場');
+  nodes.push(h);
+  if (headline) nodes.push(makeEl('p', headline));
+  const used = world && world.takenColors ? world.takenColors() : new Set();
+  const picker = makeEl('div', '');
+  picker.className = 'picker';
+  let chosen = worldColor;
+  for (let c = 1; c <= TEAM_COLORS; c++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.style.background = hexOf(c);
+    b.title = used.has(c) ? `色 ${c} (使用中)` : `色 ${c}`;
+    b.setAttribute('aria-pressed', c === chosen ? 'true' : 'false');
+    if (used.has(c)) b.style.opacity = '0.35';
+    b.addEventListener('click', () => {
+      chosen = c;
+      for (const x of picker.querySelectorAll('button')) {
+        x.setAttribute('aria-pressed', 'false');
+      }
+      b.setAttribute('aria-pressed', 'true');
+    });
+    picker.append(b);
+  }
+  nodes.push(picker);
+  const go = makeEl('button', 'この色で出る');
+  go.className = 'btn primary';
+  go.addEventListener('click', () => {
+    worldColor = chosen;
+    if (world && world.respawn) world.respawn(chosen);
+    hud.overlay(null);
+  });
+  nodes.push(go);
+  const spec = makeEl('p', 'すでに使われている色は薄くなります。');
+  nodes.push(spec);
+  hud.overlay(nodes);
+}
+
+el.btnWorldJoin.addEventListener('click', () => startWorld());
+el.btnWorldLeave.addEventListener('click', () => leaveWorldMode());
+el.inName.addEventListener('input', () => {
+  if (world instanceof SharedGame) world.name = (el.inName.value || '').trim().slice(0, 16) || '名無し';
+  if (world instanceof LocalWorld) world.name = (el.inName.value || '').trim().slice(0, 16) || '名無し';
+});
+
 /* ------------------------------------------------------------------ 表示 */
 
 function syncControls() {
@@ -519,7 +779,7 @@ function frame(now) {
   const dt = Math.max(0, now - last);
   last = now;
   lastFrameAt = now;
-  tick(dt, true);
+  tick(dt, true, now);
   requestAnimationFrame(frame);
 }
 
@@ -528,7 +788,7 @@ function frame(now) {
  * requestAnimationFrame はタブが背景になると止まるので、
  * ホストが別のタブに切り替わっても試合が凍らないように setInterval でも回す。
  */
-function tick(dt, draw) {
+function tick(dt, draw, now) {
   // ホストだけが snake を進める。ゲストは受け取ったフレームを描くだけ。
   const driving = !net || net.host;
   if (state.status === 'running' && driving) {
@@ -568,10 +828,14 @@ function tick(dt, draw) {
   }
 
   if (draw) {
-    renderer.draw(state, false);
-    if (state.mode === 'battle') hud.updateDuel(state);
-    else hud.updateSolo(state);
-    hud.updateRecord(records[state.gridId]);
+    if (worldMode) {
+      worldFrame(now);
+    } else {
+      renderer.draw(state, false);
+      if (state.mode === 'battle') hud.updateDuel(state);
+      else hud.updateSolo(state);
+      hud.updateRecord(records[state.gridId]);
+    }
   }
 
   saveTimer += dt;
@@ -767,15 +1031,21 @@ if (new URLSearchParams(location.search).has('debug')) {
     get state() { return state; },
     get net() { return net; },
     get room() { return room; },
+    get world() { return world; },
+    get worldMode() { return worldMode; },
     renderer,
     palette,
     setFoe,
     hostRoom,
     joinRoom,
+    applyMode,
+    startWorld,
+    startLocalWorld,
     draw: () => {
       renderer.dirty = true;
       renderer.draw(state, true);
     },
+    drawWorld,
     recount,
     save: () => saveState(state),
   };

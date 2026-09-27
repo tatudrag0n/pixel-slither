@@ -10,7 +10,10 @@
     "test:browser": "node test/browser.test.js",
     "test:duel": "node test/duel.test.js",
     "test:live": "node test/browser.test.js",
-    "shot": "node test/shot.mjs"
+    "shot": "node test/shot.mjs",
+    "deploy:server": "npx --yes wrangler@4 deploy",
+    "deploy:server:tail": "npx --yes wrangler@4 tail",
+    "server:dev": "npx --yes wrangler@4 dev"
   },
   "keywords": ["game", "snake", "pixel-art", "canvas", "no-dependencies"],
   "license": "MIT"

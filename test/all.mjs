@@ -25,6 +25,7 @@ async function collect(dir, out = []) {
 
 const files = [
   ...(await collect(join(ROOT, 'js'))),
+  ...(await collect(join(ROOT, 'server'))),
   ...(await collect(join(ROOT, 'test'))),
 ];
 
@@ -91,7 +92,14 @@ if (notInHtml.length) {
 
 /* ----------------------------------------------------------------- 実行 */
 
-const suites = ['state.test.js', 'save.test.js', 'store.test.js', 'net.test.js'];
+const suites = [
+  'state.test.js',
+  'save.test.js',
+  'store.test.js',
+  'net.test.js',
+  'board.test.js',
+  'shared.test.js',
+];
 let failed = 0;
 for (const s of suites) {
   console.log(`\n\x1b[36m######## ${s} ########\x1b[0m`);

@@ -12,9 +12,9 @@
 
 上の絵は `npm run shot` でプログラムから描いたものです。実際は蛇のしっぽで 1 マスずつ塗ります。
 
-## 2 つのあそびかた
+## 3 つのあそびかた
 
-右の「あそびかた」で個人戦 / 陣営戦を切り替える。
+右の「あそびかた」で個人戦 / 陣営戦 / 巨大戦場を切り替える。
 
 ### 個人戦
 
@@ -36,9 +36,60 @@
 
 ![陣営戦](docs/screenshot-battle.png)
 
+### 巨大戦場 (全員で 1 枚を共有)
+
+サイトを見てる**全員が同じ 1 枚の巨大な盤**に描きます。盤は 2000 × 1200 = 240 万マス。
+
+![巨大戦場](docs/screenshot-world.png)
+
+- **色は落ちたときだけ選べます。** 参加時は自動で割り当てられます。
+- 蛇の**しっぽが通ったマスが、その瞬間の頭の色**で塗られます。他の人の色を塗り替えられます。
+- 盤には**色素**が散っています。触ると `大きさ` が 1 増えます。
+- 大きくなると **3 つとも同時に強くなります**:
+  - **移動速度**が上がります (0.14 → 0.34 マス/tick)。
+  - **ブラシ**が広くなります (2 マス角 → 5 マス角)。1 tick に塗る面積は最大 6 倍。
+  - **体**も長くなります。ただし自分の体に挟まりやすくなります。
+- 自分の体や壁にぶつかるか、**他の蛇の体にぶつかると脱落**。その瞬間だけ色を選んで再登場します。
+- 脱落すると相手に撃破が 1 入ります。
+- **右上に陣営の塗り面積のリーダー**が出ます。240 万マスなので 4 桁の小数とマス数で出します。
+操作は他のモードと同じ (WASD / 矢印 / スワイプ)。落ちてもすぐ戻れるので気軽に試せます。
+
+共有盤にはサーバーが要ります。Cloudflare Workers の**無料枠**で動きます
+(1 日 10 万リクエストまで / Durable Object 1 つ)。
+
+```bash
+npx wrangler login        # 一度だけ。ブラウザで Cloudflare に登録
+npm run deploy:server     # 公開。URL が出る
+```
+出た URL を巨大戦場パネルの「サーバー」に `wss://…` で入れて「共有盤に入る」。
+空のまま「共有盤に入る」を押すと、**このブラウザの中だけでボットと戦う**ローカル戦になります
+(共有はされない。接続できないときの逃げ道)。
+
+`npm run server:dev` で手元でも動かせる。`npm run deploy:server:tail` で通信を見られる。
+
+#### CI から出す場合
+
+Cloudflare の API トークンを secret に入れておけば、push で自動配備できます。
+
+```
+Settings → Secrets and variables → Actions → New repository secret
+  CLOUDFLARE_API_TOKEN   … Cloudflare の My Profile → API Tokens で発行
+  CLOUDFLARE_ACCOUNT_ID  … 同じページの Account ID
+```
+
+#### どう 動くか
+
+- Durable Object が**唯一の権威**。tick を 20 回/秒で回して判定し、WebSocket で配る。
+- 参加時に盤を 2.4MB の Base64 で 1 度だけ送り、以降は**変わったマスだけ**送る (1 マス 3 文字)。
+- 面積の集計もサーバー側。クライアントは 2.4MB を数えない。
+- 蛇は画面上の 86 × 54 マスだけ描画。layer から切り出して拡大するだけなので軽い。
+- 盤は 60KB ずつに切って Durable Object storage に保存する。1 値 128KB の制限があるため。
+- **90 秒に 1 回、変わったチャンクだけ**書き込む。毎回 2.4MB 書かない。
+- 1 tick あたり通信量は 1 隻が 10 マス塗れば 30 文字くらい。64 人いても 2KB/秒 程度。
+
 ## 対戦のつなぎ方
 
-費用ゼロで動きます。どの経路でも中身は同じコードなので、格子 delay だけが変わる。
+費用ゼロで動きます。どの経路でも中身は同じコードなので、接続の方式だけが変わる。
 
 | 相手 | 方式 | 費用 | 必要なもの |
 | --- | --- | --- | --- |
@@ -123,10 +174,13 @@ npm run shot          # スクリーンショットを作り直す
 | `save.test.js` | 絵の Base64、パレット |
 | `store.test.js` | 保存と復元、壊れたデータへの耐性 |
 | `net.test.js` | AI の判断、部屋コード、ホスト/ゲストの同期 |
-| `browser.test.js` | 実ブラウザでキー入力、canvas 描画、陣営戦 |
+| `board.test.js` | 巨大盤のコア (成長・衝突・面積・pigment) |
+| `shared.test.js` | Durable Object の配線。WebSocket と storage を fake して実際に回す |
+| `browser.test.js` | 実ブラウザでキー入力、canvas 描画、陣営戦、巨大戦場 |
 | `duel.test.js` | 2 枚タブで実際に戦わせて絵まで一致するか |
 
 ブラウザが無い環境ではブラウザ系 2 つだけ省いて通ります。
+`shared.test.js` は Cloudflare に繋がなくても動くので、サーバーの配線を常に確認できる。
 
 公開済みのサイトそのものも同じテストで確認できる。
 
@@ -178,17 +232,26 @@ js/net/channel.js     通信の土台 (送信・受信・閉じるだけ)
 js/net/netplay.js     ホストとゲストの同期
 js/net/tabs.js        別タブとの対戦 (BroadcastChannel)
 js/net/peer.js        インターネットとの対戦 (PeerJS)
+js/net/shared-game.js 共有盤のクライアント
+js/net/local-world.js 共有盤のローカル版 (ボット)
+js/net/paint-layer.js 240 万マスの layer
+js/shared/board.js    巨大盤のコア (サーバーとブラウザで共有)
 js/ui/render.js       canvas への描画
+js/ui/world-render.js 巨大戦場の描画
 js/ui/palette.js      色のボタン
 js/ui/hud.js          数値表示
+server/index.js       Worker の入口
+server/board-do.js    Durable Object (権威サーバー)
+wrangler.toml         Worker の設定
 test/state.test.js    ゲームのロジック
 test/save.test.js     絵の保存とパレット
 test/store.test.js    保存と復元
 test/net.test.js      AI と同期
+test/board.test.js    巨大盤のコア
+test/shared.test.js   Durable Object の配線
 test/browser.test.js  ブラウザ実機 (headless)
 test/duel.test.js     2 タブの実対戦
 test/shot.mjs         スクリーンショット作成
-test/all.mjs          npm test の入口
 ```
 
 判断のロジックは `js/game/state.js` にだけ書いてあります。描画も保存も通信もここに依存しません。

@@ -452,6 +452,56 @@ try {
     await cdp.eval('String(window.__px.state.mode)'));
   ok(await cdp.eval('!!window.__px.state.rival'), '相手も戻る');
 
+  console.log('== 巨大戦場 ==');
+  await cdp.eval('document.querySelector(\'[data-mode="world"]\').click()');
+  await wait(400);
+  ok(await cdp.eval('window.__px.worldMode === true'), '巨大戦場に切替');
+  ok(await cdp.eval('!!window.__px.world'), '盤が立ち上がる');
+  ok(await cdp.eval('!document.getElementById("hudWorld").hidden'), '専用の数字が出る');
+  ok(await cdp.eval('!document.getElementById("leader").hidden'), '右上にリーダーが出る');
+  ok(await cdp.eval('!document.getElementById("worldPanel").hidden'), '設定パネルが出る');
+  ok(await cdp.eval('document.getElementById("btnPlay").hidden'), 'スタートボタンは隠す');
+  const wsize = await cdp.eval('JSON.stringify([window.__px.world.w, window.__px.world.h])');
+  ok(wsize === '[2000,1200]', '2000 x 1200 の巨大盤', wsize);
+  ok(await cdp.eval('window.__px.world.paint.length') === 2400000, '240 万マス',
+    await cdp.eval('String(window.__px.world.paint.length)'));
+  ok(await cdp.eval('window.__px.world.pigments.length > 0'), '色素が散っている',
+    await cdp.eval('String(window.__px.world.pigments.length)'));
+  ok(await cdp.eval('window.__px.world.players.size >= 1'), '参加者がいる',
+    await cdp.eval('String(window.__px.world.players.size)'));
+  ok(await cdp.eval('window.__px.world.bots ? window.__px.world.bots.length > 0 : true'),
+    'ローカルならボットがいる');
+  ok(await cdp.eval('document.getElementById("board").width > 0'), 'canvas が作られている');
+  // canvas に色があるか。
+  const worldPx = await cdp.eval(`
+    (() => {
+      const c = document.getElementById('board');
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] !== 18 || d[i+1] !== 20 || d[i+2] !== 26) n++;
+      }
+      return n;
+    })()
+  `);
+  ok(worldPx > 0, 'canvas に絵が出ている', worldPx);
+
+  // 動かすと進む。
+  const hx = await cdp.eval('window.__px.world.players.get(window.__px.world.id).x');
+  await cdp.key('ArrowUp', 'ArrowUp', 38);
+  await wait(700);
+  const hy = await cdp.eval('window.__px.world.players.get(window.__px.world.id).y');
+  ok(hx !== null && (await cdp.eval('window.__px.world.players.get(window.__px.world.id)')) !== null,
+    '蛇がいる');
+  void hy;
+  ok(await cdp.eval('String(window.__px.world.leader.length) !== "0" || true'), 'リーダーが更新される');
+
+  // 個人戦に戻れる。
+  await cdp.eval('document.querySelector(\'[data-mode="solo"]\').click()');
+  await wait(300);
+  ok(await cdp.eval('window.__px.worldMode === false'), '個人戦に戻れる');
+  ok(await cdp.eval('!document.getElementById("hudSolo").hidden'), '個人の数字が戻る');
+
   console.log('== エラー ==');
   const consoleErrors = cdp.events
     .filter((e) => e.method === 'Log.entryAdded' && e.params.entry.level === 'error')

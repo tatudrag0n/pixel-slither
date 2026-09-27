@@ -1,0 +1,32 @@
+# ============================================================================
+# 共有盤のサーバー設定
+#
+# Cloudflare Workers の無料枠で動く。
+# Durable Object を 1 つだけ置いて、全員が同じ盤を共有する。
+#
+# 公開するには:
+#   npm run wrangler login     # 一度だけ。ブラウザで Cloudflare に登録する
+#   npm run deploy:server      # 公開
+#   npm run deploy:server:url  # 今の設定の確認 + URL
+# ============================================================================
+name = "pixel-slither-board"
+main = "server/index.js"
+compatibility_date = "2026-09-11"
+workers_dev = true
+
+# Durable Object の置き場所。名前はコード側で "main" に固定している。
+# 変えると既存の絵が消えるので、配ったら触らないこと。
+[[durable_objects.bindings]]
+name = "BOARD"
+class_name = "SharedBoard"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SharedBoard"]
+
+# 盤の描画はクライアント側で行うので、CPU に余裕を持たせる。
+[limits]
+cpu_ms = 2000
+
+[observability]
+enabled = true

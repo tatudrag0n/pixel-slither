@@ -91,6 +91,11 @@ h1, h2 { margin: 0; font-weight: 700; }
   margin-bottom: 10px;
 }
 
+/* display を指定した要素では [hidden] が効かないので、自分で書く。 */
+.hud[hidden],
+.progress[hidden],
+.versus[hidden] { display: none; }
+
 .progress {
   position: relative;
   flex: 1 1 220px;
@@ -271,6 +276,143 @@ body.touch .pad { display: flex; }
 
 .theirs .side-head { flex-direction: row-reverse; }
 
+/* ------------------------------------------------------------- 巨大戦場 */
+
+.hud.world {
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.hud.world[hidden] { display: none; }
+
+.world-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+}
+
+.wstat { text-align: center; }
+
+.wstat dt {
+  font-size: 10px;
+  color: var(--fg-dim);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.wstat dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.world-status {
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* 右上に出る陣営リーダー。 */
+.leader {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  min-width: 172px;
+  max-width: 46%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(10, 12, 16, 0.82);
+  backdrop-filter: blur(3px);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.leader[hidden] { display: none; }
+
+.leader-title {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--fg-dim);
+  margin-bottom: 4px;
+}
+
+.leader-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.leader-list li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.leader-list .chip {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.leader-list .who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-dim);
+}
+
+.leader-list li.mine .who { color: var(--accent); font-weight: 700; }
+
+.leader-list .pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.leader-list li.mine .pct { color: var(--accent); }
+
+.leader-foot {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+  font-size: 10px;
+  color: #6f7a92;
+}
+
+/* 復活時の色選び。 */
+.picker {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.picker button {
+  aspect-ratio: 1;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.picker button:hover { transform: scale(1.1); }
+
+.picker button[aria-pressed="true"] {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--accent-2);
+}
+
 /* ---------------------------------------------------------------- panel */
 
 .panel { display: flex; flex-direction: column; gap: 12px; }
@@ -367,7 +509,7 @@ kbd {
 
 .seg {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -525,7 +667,8 @@ kbd {
   accent-color: var(--accent);
 }
 
-.row select {
+.row select,
+.row input[type="text"] {
   width: 100%;
   margin-top: 4px;
   padding: 6px;

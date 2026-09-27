@@ -19,7 +19,7 @@
 <main class="layout">
 
   <section class="stage">
-    <div class="hud">
+    <div class="hud" id="hudSolo">
       <div class="progress" role="progressbar" aria-label="塗り進みの割合" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
         <div class="progress-fill" id="progressFill"></div>
         <span class="progress-text" id="progressText">0.0%</span>
@@ -42,9 +42,26 @@
       </dl>
     </div>
 
+    <div class="hud world" id="hudWorld" hidden>
+      <div class="world-stats">
+        <div class="wstat"><dt>大きさ</dt><dd id="wSize">3</dd></div>
+        <div class="wstat"><dt>速度</dt><dd id="wSpeed">1.0</dd></div>
+        <div class="wstat"><dt>ブラシ</dt><dd id="wBrush">2 マス</dd></div>
+        <div class="wstat"><dt>体長</dt><dd id="wLen">12</dd></div>
+        <div class="wstat"><dt>撃破</dt><dd id="wKills">0</dd></div>
+        <div class="wstat"><dt>盤の大きさ</dt><dd id="wMap">—</dd></div>
+      </div>
+      <div class="world-status" id="wStatus">共有盤に接続しています…</div>
+    </div>
+
     <div class="board-wrap" id="boardWrap">
       <canvas id="board" aria-label="おえかきキャンバス"></canvas>
       <div class="overlay" id="overlay" hidden></div>
+      <div class="leader" id="leader" hidden>
+        <div class="leader-title">陣営の塗り面積</div>
+        <ol class="leader-list" id="leaderList"></ol>
+        <div class="leader-foot" id="leaderFoot">—</div>
+      </div>
     </div>
 
     <div class="pad" id="pad" aria-hidden="true">
@@ -72,7 +89,28 @@
       <div class="seg" id="modeSeg" role="group" aria-label="モード">
         <button type="button" data-mode="solo" aria-pressed="true">個人戦</button>
         <button type="button" data-mode="battle" aria-pressed="false">陣営戦</button>
+        <button type="button" data-mode="world" aria-pressed="false">巨大戦場</button>
       </div>
+      <p class="hint" id="modeHint">個人戦: 1 人でキャンバスを埋める。色を 1 つずつ選びながら動かします。</p>
+    </div>
+
+    <div class="group" id="worldPanel" hidden>
+      <h2>巨大戦場 <span class="sub">全員で 1 枚を共有</span></h2>
+      <p class="hint">サイトを見てる人が同じ 2000 × 1200 の盤に描きます。
+      色は <b>落ちたときだけ</b> 選べます。</p>
+      <label class="row">
+        <span>自分の名前</span>
+        <input type="text" id="inName" maxlength="16" placeholder="名無し" autocomplete="off">
+      </label>
+      <label class="row">
+        <span>サーバー</span>
+        <input type="text" id="inServer" placeholder="wss://… (空なら既定)" spellcheck="false">
+      </label>
+      <div class="btn-row">
+        <button type="button" class="btn primary" id="btnWorldJoin">共有盤に入る</button>
+        <button type="button" class="btn" id="btnWorldLeave">出る</button>
+      </div>
+      <p class="hint" id="worldHint">サーバーに繋がらない場合は、ローカルボットと戦えます。</p>
       <p class="hint" id="modeHint">個人戦: 1 人でキャンバスを埋める。色を 1 つずつ選びながら動きます。</p>
     </div>
 
