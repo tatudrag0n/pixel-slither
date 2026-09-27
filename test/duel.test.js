@@ -175,9 +175,13 @@ async function waitFor(cdp, expression, ms = 15000) {
   return false;
 }
 
-const exe = BROWSERS.find((p) => existsSync(p));
+/** Node 22 以降には WebSocket がある。それ以前なら duel.test.js は動かさない。 */
+const HAS_WS = typeof WebSocket === 'function';
+
+const exe = HAS_WS ? BROWSERS.find((p) => existsSync(p)) : null;
 if (!exe) {
-  console.log('Chrome / Edge が無いので 2 タブの対戦確認は省きます。');
+  const why = HAS_WS ? 'Chrome / Edge が無い' : 'この Node には WebSocket が無い (Node 22 以降が必要)';
+  console.log(`${why}ので 2 タブの対戦確認は省きます。`);
   process.exit(0);
 }
 

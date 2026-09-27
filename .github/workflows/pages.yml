@@ -25,7 +25,8 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          # ブラウザ実機のテストは内蔵の WebSocket を使うので Node 22 以上。
+          node-version: "22"
 
       # 依存パッケージは無いので、構文チェックとブラウザ実機のテストだけ回す。
       # (ブラウザが無い環境ではその項目だけ省いて通る)

@@ -224,9 +224,13 @@ async function connect(debugPort, tries = 120) {
 
 /* --------------------------------------------------------------------- 実行 */
 
-const exe = CANDIDATES.find((p) => existsSync(p));
+/** Node 22 以降には WebSocket がある。それ以前ならブラウザ確認は動かさない。 */
+const HAS_WS = typeof WebSocket === 'function';
+
+const exe = HAS_WS ? CANDIDATES.find((p) => existsSync(p)) : null;
 if (!exe) {
-  console.log('Chrome / Edge が見つからないのでブラウザ確認は省きます。');
+  const why = HAS_WS ? 'Chrome / Edge が見つからない' : 'この Node には WebSocket がない (Node 22 以降が必要)';
+  console.log(`${why}のでブラウザ確認は省きます。`);
   process.exit(0);
 }
 
