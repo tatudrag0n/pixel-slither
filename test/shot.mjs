@@ -167,10 +167,10 @@ try {
       for (let y = 9; y < 14; y++) for (let x = 5; x < 12; x++) {
         if ((x - 8) ** 2 + (y - 11) ** 2 <= 9) put(x, y, 7);
       }
-      s.painted = px.countPainted(s.paint);
-      s.snake = [{x: 20, y: 6}, {x: 19, y: 6}, {x: 18, y: 6}, {x: 18, y: 5}, {x: 18, y: 4}];
-      s.dir = { x: 1, y: 0 };
-      s.color = 4;
+      px.recount(s);
+      s.me.snake = [{x: 20, y: 6}, {x: 19, y: 6}, {x: 18, y: 6}, {x: 18, y: 5}, {x: 18, y: 4}];
+      s.me.dir = { x: 1, y: 0 };
+      s.me.color = 4;
       s.status = 'idle';
       px.draw();
       document.getElementById('btnPlay').textContent = 'スタート  Space';

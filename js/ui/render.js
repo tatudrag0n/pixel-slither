@@ -7,6 +7,7 @@
 // ============================================================================
 
 import { paintToRGBA } from '../game/paint.js';
+import { players } from '../game/state.js';
 import { BG, GRID_LINE, hexOf } from '../data/colors.js';
 import { mixHex, luminance, clamp } from '../core/util.js';
 
@@ -100,8 +101,10 @@ export class Renderer {
     if (this.showGuide && this.guide) this.drawGuide(ctx, w, h);
     ctx.drawImage(this.layer, 0, 0, cols, rows, 0, 0, w, h);
     if (s.showGrid) this.drawGrid(ctx, w, h);
-    if (s.showBody) this.drawBody(s, cell);
-    this.drawHead(s, cell);
+    if (s.showBody) {
+      for (const p of players(s)) this.drawBody(p, cell);
+    }
+    for (const p of players(s)) this.drawHead(s, p, cell);
   }
 
   /** 下書き画像を背後に薄く敷く。 */
@@ -126,31 +129,34 @@ export class Renderer {
   }
 
   /** 体の部分。頭の色を薄く重ねる。 */
-  drawBody(s, cell) {
+  drawBody(p, cell) {
     const ctx = this.ctx;
-    const hex = s.eraser ? BG.light : hexOf(s.color, BG.light);
+    if (!p.snake.length) return;
+    const hex = hexOf(p.color, BG.light);
     ctx.save();
     ctx.globalAlpha = BODY_ALPHA;
     ctx.fillStyle = hex;
-    for (let i = 1; i < s.snake.length; i++) {
-      const p = s.snake[i];
-      ctx.fillRect(p.x * cell, p.y * cell, cell, cell);
+    for (let i = 1; i < p.snake.length; i++) {
+      const c = p.snake[i];
+      ctx.fillRect(c.x * cell, c.y * cell, cell, cell);
     }
     ctx.restore();
   }
 
   /** 頭。目と鼻を入れて向きが分かるようにする。 */
-  drawHead(s, cell) {
+  drawHead(s, p, cell) {
     const ctx = this.ctx;
-    const head = s.snake[0];
+    const head = p.snake[0];
     if (!head) return;
-    const hex = s.eraser ? '#f0f2f5' : hexOf(s.color, BG.dark);
+    const hex = hexOf(p.color, BG.dark);
     const x = head.x * cell;
     const y = head.y * cell;
-    const d = s.dir;
+    const d = p.dir;
     const fwd = { x: d.x, y: d.y };
     const side = { x: -fwd.y, y: fwd.x };
 
+    ctx.save();
+    ctx.globalAlpha = p.alive ? 1 : 0.35;
     ctx.fillStyle = hex;
     ctx.fillRect(x, y, cell, cell);
 
@@ -180,6 +186,7 @@ export class Renderer {
     const nx = x + (cell / 2) + fwd.x * (cell * 0.5) - nose / 2;
     const ny = y + (cell / 2) + fwd.y * (cell * 0.5) - nose / 2;
     ctx.fillRect(Math.round(nx), Math.round(ny), nose, nose);
+    ctx.restore();
   }
 }
 

@@ -8,6 +8,7 @@
     "start": "npx --yes serve -l 8098 .",
     "test": "node test/all.mjs",
     "test:browser": "node test/browser.test.js",
+    "test:duel": "node test/duel.test.js",
     "test:live": "node test/browser.test.js",
     "shot": "node test/shot.mjs"
   },

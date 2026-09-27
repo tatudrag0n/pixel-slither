@@ -20,13 +20,23 @@
 
   <section class="stage">
     <div class="hud">
-      <div class="progress" role="progressbar" aria-label="塗り進みの割合" aria-valuemin="0" aria-valuemax="100" id="progressBar">
+      <div class="progress" role="progressbar" aria-label="塗り進みの割合" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
         <div class="progress-fill" id="progressFill"></div>
         <span class="progress-text" id="progressText">0.0%</span>
       </div>
+      <div class="versus" id="versus" hidden>
+        <div class="side mine">
+          <div class="side-head"><span id="barMineName">あなた</span><b id="barMineText">0.0%</b></div>
+          <div class="bar"><div class="bar-fill mine" id="barMine"></div></div>
+        </div>
+        <div class="side theirs">
+          <div class="side-head"><span id="barRivalName">あいて</span><b id="barRivalText">0.0%</b></div>
+          <div class="bar"><div class="bar-fill rival" id="barRival"></div></div>
+        </div>
+      </div>
       <dl class="stats">
         <div class="stat"><dt>手数</dt><dd id="statMoves">0</dd></div>
-        <div class="stat"><dt>時間</dt><dd id="statTime">0:00</dd></div>
+        <div class="stat"><dt id="statTimeLabel">時間</dt><dd id="statTime">0:00</dd></div>
         <div class="stat"><dt>塗り残し</dt><dd id="statLeft">0</dd></div>
         <div class="stat"><dt>ベスト</dt><dd id="statBest">—</dd></div>
       </dl>
@@ -55,6 +65,39 @@
         <button type="button" class="btn" id="btnRestart">やり直し <kbd>R</kbd></button>
       </div>
       <p class="hint" id="statusHint">キャンバスを全部塗るとクリア。塗った色は消えない。</p>
+    </div>
+
+    <div class="group">
+      <h2>あそびかた</h2>
+      <div class="seg" id="modeSeg" role="group" aria-label="モード">
+        <button type="button" data-mode="solo" aria-pressed="true">個人戦</button>
+        <button type="button" data-mode="battle" aria-pressed="false">陣営戦</button>
+      </div>
+      <p class="hint" id="modeHint">個人戦: 1 人でキャンバスを埋める。色を 1 つずつ選びながら動きます。</p>
+    </div>
+
+    <div class="group" id="battlePanel" hidden>
+      <h2>陣営戦</h2>
+      <div class="checks">
+        <label class="chk"><input type="radio" name="foe" id="foeAi" value="ai" checked> <span>AI と戦う</span></label>
+        <label class="chk"><input type="radio" name="foe" id="foeTabs" value="tabs"> <span>このブラウザの別タブと戦う</span></label>
+        <label class="chk"><input type="radio" name="foe" id="foeNet" value="net"> <span>インターネットの相手と戦う</span></label>
+      </div>
+      <label class="row">
+        <span>AI の強さ <b id="valLevel">ふつう</b></span>
+        <input type="range" id="inLevel" min="0" max="2" step="1" value="1">
+      </label>
+      <div class="net" id="netBox" hidden>
+        <div class="net-row" id="netHost">
+          <button type="button" class="btn" id="btnMakeRoom">部屋を作る</button>
+          <code class="room" id="roomCode" aria-live="polite">—</code>
+        </div>
+        <div class="net-row">
+          <input type="text" id="inRoom" placeholder="部屋コード" maxlength="8" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn" id="btnJoin">入る</button>
+        </div>
+        <p class="hint" id="netStatus">まだつないでいません。</p>
+      </div>
     </div>
 
     <div class="group">

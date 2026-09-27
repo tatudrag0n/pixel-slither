@@ -7,7 +7,9 @@
 // ============================================================================
 
 import { encodePaint, decodePaint, countFilled } from '../game/paint.js';
-import { GRIDS, maxLength, countPainted } from '../game/state.js';
+import {
+  GRIDS, createState, maxLength, recount, resetSnake,
+} from '../game/state.js';
 import { clamp } from './util.js';
 import { customColors, applyCustomColors, MAX_COLOR } from '../data/colors.js';
 
@@ -69,22 +71,27 @@ export function saveState(s) {
   data.custom = customColors();
   data.records = data.records || {};
   data.game = {
+    mode: s.mode,
     gridId: s.gridId,
     paint: encodePaint(s.paint),
-    color: s.color,
-    eraser: s.eraser,
+    color: s.me.color,
+    eraser: !!s.me.eraser,
+    rivalColor: s.rival ? s.rival.color : 0,
+    rivalName: s.rival ? s.rival.name : '',
     speed: s.speed,
     length: s.length,
     wrap: s.wrap,
     risky: s.risky,
     showBody: s.showBody,
     showGrid: s.showGrid,
+    aiLevel: s.aiLevel || 'normal',
     moves: s.moves,
     elapsed: s.elapsed,
+    left: s.left,
     status: s.status === 'running' || s.status === 'paused' ? s.status : 'idle',
     won: s.won,
-    snake: s.snake.map((p) => [p.x, p.y]),
-    dir: [s.dir.x, s.dir.y],
+    snake: s.me.snake.map((p) => [p.x, p.y]),
+    dir: [s.me.dir.x, s.me.dir.y],
   };
   return write(data);
 }
@@ -99,55 +106,49 @@ export function loadData() {
     const grid = GRIDS[g.gridId] || GRIDS.m;
     const paint = decodePaint(g.paint || '', grid.cols * grid.rows);
     const filled = countFilled(paint);
-    const s = {
+    const mode = g.mode === 'battle' ? 'battle' : 'solo';
+    const color = clamp(g.color || 3, 1, MAX_COLOR);
+    const s = createState({
+      mode,
       gridId: grid.id,
-      cols: grid.cols,
-      rows: grid.rows,
-      paint,
-      painted: countPainted(paint),
-      color: clamp(g.color || 3, 1, MAX_COLOR),
-      eraser: !!g.eraser,
-      speed: clamp(g.speed || 7, 1, 30),
-      length: 3,
+      color,
+      rivalColor: clamp(g.rivalColor || (color === 4 ? 5 : 4), 1, MAX_COLOR),
+      rivalName: g.rivalName || 'あいて',
+      rivalIsAi: true,
+      speed: g.speed,
+      length: g.length,
       wrap: g.wrap !== false,
       risky: !!g.risky,
       showBody: g.showBody !== false,
       showGrid: g.showGrid !== false,
-      status: g.won ? 'won' : (g.status === 'idle' ? 'idle' : 'paused'),
-      won: !!g.won,
-      moves: g.moves || 0,
-      elapsed: g.elapsed || 0,
-      reason: '',
-      snake: [],
-      dir: { x: 1, y: 0 },
-      queue: [],
-    };
-    s.length = clamp(g.length || 5, 2, maxLength(s));
+      seconds: g.left,
+    });
+    s.paint = paint;
+    s.painted = filled;
+    recount(s);
+    s.me.color = color;
+    s.me.eraser = !!g.eraser;
+    s.aiLevel = g.aiLevel || 'normal';
+    s.status = g.won ? 'won' : (g.status === 'idle' ? 'idle' : 'paused');
+    s.won = !!g.won;
+    s.moves = g.moves || 0;
+    s.elapsed = g.elapsed || 0;
+    s.left = g.left || s.left;
+
     const body = Array.isArray(g.snake) ? g.snake : [];
     const ok = body.length === s.length
       && body.every((p) => Array.isArray(p)
         && p[0] >= 0 && p[0] < s.cols && p[1] >= 0 && p[1] < s.rows);
-    if (ok) s.snake = body.map((p) => ({ x: p[0], y: p[1] }));
-    else s.snake = defaultSnake(s);
+    if (ok) s.me.snake = body.map((p) => ({ x: p[0], y: p[1] }));
+    else resetSnake(s, s.me);
     if (Array.isArray(g.dir) && (g.dir[0] || g.dir[1])) {
-      s.dir = { x: Math.sign(g.dir[0]) || 0, y: Math.sign(g.dir[1]) || 0 };
-      if (!s.dir.x && !s.dir.y) s.dir = { x: 1, y: 0 };
+      s.me.dir = { x: Math.sign(g.dir[0]) || 0, y: Math.sign(g.dir[1]) || 0 };
+      if (!s.me.dir.x && !s.me.dir.y) s.me.dir = { x: 1, y: 0 };
     }
-    if (filled !== s.painted) s.painted = filled;
+    if (s.rival) resetSnake(s, s.rival);
     return { state: s, records: data.records || {} };
   }
   return { state: null, records: data.records || {} };
-}
-
-/** 保存データが無いときの初期蛇。 */
-export function defaultSnake(s) {
-  const cy = s.rows >> 1;
-  const cx = s.cols >> 1;
-  const body = [];
-  for (let i = 0; i < s.length; i++) {
-    body.push({ x: (cx - i + s.cols) % s.cols, y: cy });
-  }
-  return body;
 }
 
 /** ベスト記録一覧。 */

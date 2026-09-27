@@ -91,7 +91,7 @@ if (notInHtml.length) {
 
 /* ----------------------------------------------------------------- 実行 */
 
-const suites = ['state.test.js', 'save.test.js', 'store.test.js'];
+const suites = ['state.test.js', 'save.test.js', 'store.test.js', 'net.test.js'];
 let failed = 0;
 for (const s of suites) {
   console.log(`\n\x1b[36m######## ${s} ########\x1b[0m`);
@@ -100,6 +100,9 @@ for (const s of suites) {
 
 console.log('\n\x1b[36m######## browser.test.js ########\x1b[0m');
 failed += await run('browser.test.js');
+
+console.log('\n\x1b[36m######## duel.test.js ########\x1b[0m');
+failed += await run('duel.test.js');
 
 console.log(failed
   ? '\n\x1b[31m=== テストに失敗しました ===\x1b[0m'

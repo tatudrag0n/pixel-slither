@@ -296,29 +296,29 @@ try {
 
   console.log('== キー入力 ==');
   await cdp.eval('window.__px.state.status = "idle"');
-  const before = await cdp.eval('JSON.stringify(window.__px.state.snake[0])');
+  const before = await cdp.eval('JSON.stringify(window.__px.state.me.snake[0])');
   await cdp.key('ArrowUp', 'ArrowUp', 38);
   await wait(400);
-  const afterUp = await cdp.eval('JSON.stringify(window.__px.state.snake[0])');
+  const afterUp = await cdp.eval('JSON.stringify(window.__px.state.me.snake[0])');
   ok(before !== afterUp, '矢印で蛇が動く', `${before} -> ${afterUp}`);
-  ok(await cdp.eval('window.__px.state.dir.y === -1'), '上向きになった');
+  ok(await cdp.eval('window.__px.state.me.dir.y === -1'), '上向きになった');
   await cdp.key('KeyD', 'd', 68);
   await wait(60);
-  ok(await cdp.eval('window.__px.state.dir.x === 1 || window.__px.state.dir.y === -1'), 'D を読んだ');
+  ok(await cdp.eval('window.__px.state.me.dir.x === 1 || window.__px.state.me.dir.y === -1'), 'D を読んだ');
 
   console.log('== 色を選ぶ ==');
   const c5 = await cdp.eval('document.querySelector(\'[data-color="5"]\').getAttribute("aria-pressed")');
   await cdp.key('Digit5', '5', 53);
   await wait(60);
-  ok(await cdp.eval('window.__px.state.color === 5'), '数字キーで色が変わる');
+  ok(await cdp.eval('window.__px.state.me.color === 5'), '数字キーで色が変わる');
   ok(await cdp.eval('document.querySelector(\'[data-color="5"]\').getAttribute("aria-pressed")') === 'true',
     '選んだ色が強調される', `before=${c5}`);
   await cdp.key('KeyE', 'e', 69);
   await wait(60);
-  ok(await cdp.eval('window.__px.state.color === 6'), 'E で次の色へ');
+  ok(await cdp.eval('window.__px.state.me.color === 6'), 'E で次の色へ');
   await cdp.key('KeyQ', 'q', 81);
   await wait(60);
-  ok(await cdp.eval('window.__px.state.color === 5'), 'Q で前の色へ');
+  ok(await cdp.eval('window.__px.state.me.color === 5'), 'Q で前の色へ');
 
   console.log('== 描画 ==');
   await cdp.eval(`
@@ -368,9 +368,10 @@ try {
       s.status = 'idle';
       s.paint.fill(4);
       s.paint[0] = 0;
-      s.painted = window.__px.countPainted(s.paint);
-      s.snake = [{x:1,y:0},{x:0,y:0}];
-      s.dir = {x:1,y:0};
+      s.painted = 0;
+      window.__px.recount(s);
+      s.me.snake = [{x:1,y:0},{x:0,y:0}];
+      s.me.dir = {x:1,y:0};
       s.won = false;
       s.status = 'running';
       window.__px.draw();
@@ -401,6 +402,51 @@ try {
   ok(await cdp.eval('window.__px.state.cols === 32'), '塗り絵が復元される',
     await cdp.eval('String(window.__px.state.cols)'));
   ok(await cdp.eval('window.__px.state.speed === 12'), '設定も復元される');
+
+  console.log('== 陣営戦 (AI) ==');
+  await cdp.eval('document.querySelector(\'[data-mode="battle"]\').click()');
+  await wait(300);
+  ok(await cdp.eval('window.__px.state.mode === "battle"'), '陣営戦に切替');
+  ok(await cdp.eval('!!document.getElementById("versus") && !document.getElementById("versus").hidden'),
+    '塗り面積の 2 本の棒が出る');
+  ok(await cdp.eval('!document.getElementById("battlePanel").hidden'), '陣営戦のパネルが出る');
+  ok(await cdp.eval('window.__px.state.rival !== null'), '相手がいる');
+  ok(await cdp.eval('window.__px.state.rival.isAi === true'), '相手は AI');
+  ok(await cdp.eval('window.__px.state.rival.color !== window.__px.state.me.color'), '色は別');
+  await cdp.eval('window.__px.state.speed = 24; window.__px.state.status = "running"; window.__px.draw()');
+  await wait(1400);
+  const mine = await cdp.eval('window.__px.state.counts[window.__px.state.me.color]');
+  const theirs = await cdp.eval('window.__px.state.counts[window.__px.state.rival.color]');
+  ok(mine > 0, '自分が塗る', `mine=${mine}`);
+  ok(theirs > 0, 'AI も塗る', `theirs=${theirs}`);
+  const barMine = await cdp.eval('document.getElementById("barMine").style.width');
+  ok(/%$/.test(barMine || ''), '自分の棒が伸びる', barMine);
+  ok(Number(barMine.replace('%', '')) > 0, '自分の面積が 0 より多い', barMine);
+  ok(await cdp.eval('window.__px.state.left < window.__px.state.seconds'), '残り時間が減る');
+  ok((await cdp.eval('document.getElementById("statTimeLabel").textContent')) === '残り', '残り時間の表示');
+
+  console.log('== 時間切れ ==');
+  await cdp.eval(`
+    (() => {
+      const s = window.__px.state;
+      s.left = 0.05;
+      s.status = 'running';
+      return true;
+    })()
+  `);
+  await wait(700);
+  ok(await cdp.eval('window.__px.state.status === "over"'), '時間切れで終わる');
+  ok(await cdp.eval('!document.getElementById("overlay").hidden'), '結果が出る');
+  const result = await cdp.eval('document.querySelector("#overlay h2").textContent');
+  ok(/勝ち|引き分け/.test(result), '勝敗が書かれてる', result);
+
+  console.log('== 阵営戦の保存 ==');
+  await cdp.eval('window.__px.state.status = "paused"; window.__px.save()');
+  await openPage(cdp, TARGET);
+  await wait(400);
+  ok(await cdp.eval('window.__px.state.mode === "battle"'), '陣営戦のまま戻る',
+    await cdp.eval('String(window.__px.state.mode)'));
+  ok(await cdp.eval('!!window.__px.state.rival'), '相手も戻る');
 
   console.log('== エラー ==');
   const consoleErrors = cdp.events

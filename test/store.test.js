@@ -6,7 +6,7 @@
 import {
   initStore, saveState, loadData, saveRecord, loadRecords, clearSavedGame, wipeAll,
 } from '../js/core/save.js';
-import { createState, start, step, countPainted } from '../js/game/state.js';
+import { createState, start, step, recount } from '../js/game/state.js';
 import { setCustomColor, customColors, COLORS, CUSTOM_FROM } from '../js/data/colors.js';
 
 /** ブラウザの localStorage と同じだけの器。 */
@@ -58,7 +58,7 @@ section('絵を保存して戻す');
   const t = back.state;
   eq(t.cols, s.cols, '幅が同じ');
   eq(t.rows, s.rows, '高さが同じ');
-  eq(t.color, 8, '頭の色が戻る');
+  eq(t.me.color, 8, '頭の色が戻る');
   eq(t.speed, 11, '速さが戻る');
   eq(t.length, 4, '体長が戻る');
   eq(t.moves, s.moves, '手数が戻る');
@@ -67,8 +67,8 @@ section('絵を保存して戻す');
   let same = true;
   for (let i = 0; i < s.paint.length; i++) if (t.paint[i] !== s.paint[i]) same = false;
   ok(same, '絵が完全に一致');
-  eq(t.snake.length, s.snake.length, '体の長さも戻る');
-  ok(t.snake[0].x === s.snake[0].x && t.snake[0].y === s.snake[0].y, '頭の位置が戻る');
+  eq(t.me.snake.length, s.me.snake.length, '体の長さも戻る');
+  ok(t.me.snake[0].x === s.me.snake[0].x && t.me.snake[0].y === s.me.snake[0].y, '頭の位置が戻る');
   eq(t.status, 'paused', '走行中は一時停止で戻る');
 }
 
@@ -141,9 +141,9 @@ section('蛇の座標が範囲外なら中央に戻す');
   raw.game.snake = [[999, 999], [1, 1], [2, 2], [3, 3]];
   store.setItem('pixel-slither.v1', JSON.stringify(raw));
   const t = loadData().state;
-  eq(t.snake.length, 4, '長さは保つ');
+  eq(t.me.snake.length, 4, '長さは保つ');
   let inside = true;
-  for (const p of t.snake) if (p.x < 0 || p.x >= t.cols || p.y < 0 || p.y >= t.rows) inside = false;
+  for (const p of t.me.snake) if (p.x < 0 || p.x >= t.cols || p.y < 0 || p.y >= t.rows) inside = false;
   ok(inside, '全部キャンバスの中');
 }
 
@@ -155,15 +155,15 @@ section('体の長さが変わっていた場合');
   raw.game.snake = [[1, 1], [2, 1]];
   store.setItem('pixel-slither.v1', JSON.stringify(raw));
   const t = loadData().state;
-  eq(t.snake.length, 5, '設定どおりの長さになる');
-  ok(t.snake[0].x === 16 && t.snake[0].y === 10, '頭は中央');
+  eq(t.me.snake.length, 5, '設定どおりの長さになる');
+  ok(t.me.snake[0].x === 16 && t.me.snake[0].y === 10, '頭は中央');
 }
 
 section('塗った数の検算');
 {
   const s = createState({ gridId: 's' });
   for (let i = 0; i < 50; i++) s.paint[i] = (i % 5) + 1;
-  s.painted = countPainted(s.paint);
+  recount(s);
   saveState(s);
   const raw = JSON.parse(store.getItem('pixel-slither.v1'));
   raw.game.painted = 999;
